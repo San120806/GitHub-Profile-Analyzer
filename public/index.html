@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevIntel — GitHub Developer Intelligence</title>
+  <meta name="description" content="Analyze any GitHub developer profile — detect tech stack, developer type, and language distribution using AI-powered heuristics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Tokens ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #080c14;
+      --surface:     #0d1320;
+      --surface2:    #111827;
+      --border:      rgba(99,130,190,0.12);
+      --border-glow: rgba(99,179,237,0.25);
+      --accent:      #60a5fa;
+      --accent2:     #a78bfa;
+      --accent3:     #34d399;
+      --text:        #e2e8f0;
+      --muted:       #64748b;
+      --danger:      #f87171;
+      --radius:      14px;
+      --radius-sm:   8px;
+      --glow:        0 0 40px rgba(96,165,250,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background grid ────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(96,165,250,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(96,165,250,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    header {
+      padding: 28px 0 0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .logo span { color: var(--accent); }
+    .api-badge {
+      font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;
+      background: rgba(96,165,250,0.1); border: 1px solid var(--border-glow);
+      color: var(--accent); padding: 4px 10px; border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Hero ───────────────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      padding: 70px 0 50px;
+    }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(96,165,250,0.08); border: 1px solid var(--border-glow);
+      color: var(--accent); font-size: 0.78rem; font-weight: 500;
+      padding: 5px 14px; border-radius: 20px; margin-bottom: 24px;
+      letter-spacing: 0.3px;
+    }
+    .hero-tag::before { content: '●'; font-size: 8px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800; line-height: 1.15;
+      letter-spacing: -1.5px; margin-bottom: 18px;
+      background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h1 .hi { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p {
+      color: var(--muted); font-size: 1.05rem; max-width: 560px;
+      margin: 0 auto 40px; line-height: 1.7;
+    }
+
+    /* ── Search bar ─────────────────────────────────────────────────── */
+    .search-wrap {
+      max-width: 540px; margin: 0 auto;
+      display: flex; gap: 10px;
+    }
+    .search-wrap input {
+      flex: 1;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 20px;
+      color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .search-wrap input::placeholder { color: var(--muted); }
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(96,165,250,0.12);
+    }
+    .btn {
+      padding: 14px 24px; border-radius: var(--radius);
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      border: none; transition: all .2s; white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #3b82f6);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(96,165,250,0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(96,165,250,0.4); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* ── Status / error ─────────────────────────────────────────────── */
+    .status-bar {
+      max-width: 540px; margin: 14px auto 0;
+      font-size: 0.85rem; text-align: center;
+      min-height: 22px;
+    }
+    .status-bar.error { color: var(--danger); }
+    .status-bar.info  { color: var(--accent); }
+
+    /* ── Loading spinner ────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Result section ─────────────────────────────────────────────── */
+    #result { display: none; padding: 0 0 80px; }
+    #result.visible { display: block; animation: fadeUp .4s ease; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Card ───────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--glow);
+    }
+    .card + .card { margin-top: 16px; }
+
+    /* ── Profile card ───────────────────────────────────────────────── */
+    .profile-card {
+      display: flex; align-items: flex-start; gap: 24px;
+      flex-wrap: wrap;
+    }
+    .avatar {
+      width: 88px; height: 88px; border-radius: 50%;
+      border: 3px solid var(--border-glow);
+      flex-shrink: 0;
+    }
+    .profile-info { flex: 1; min-width: 200px; }
+    .profile-name {
+      font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px;
+    }
+    .profile-username {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent); font-size: 0.85rem; margin-bottom: 6px;
+    }
+    .profile-bio { color: var(--muted); font-size: 0.9rem; line-height: 1.6; margin-bottom: 14px; }
+    .profile-stats {
+      display: flex; gap: 20px; flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat-val { font-size: 1.1rem; font-weight: 700; }
+    .stat-lbl { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+
+    .profile-badges { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+    .dev-type-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;
+      background: linear-gradient(135deg, rgba(96,165,250,0.15), rgba(167,139,250,0.15));
+      border: 1px solid rgba(167,139,250,0.3);
+      color: var(--accent2);
+    }
+    .refresh-btn {
+      background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25);
+      color: var(--accent3); padding: 7px 14px; border-radius: 20px;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      transition: all .2s;
+    }
+    .refresh-btn:hover { background: rgba(52,211,153,0.18); }
+
+    /* ── Section title ──────────────────────────────────────────────── */
+    .section-title {
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--muted); margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after { content:''; flex:1; height:1px; background: var(--border); }
+
+    /* ── Grid 2-col ─────────────────────────────────────────────────── */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+    /* ── Language bars ──────────────────────────────────────────────── */
+    .lang-bar-row { margin-bottom: 13px; }
+    .lang-bar-header {
+      display: flex; justify-content: space-between;
+      font-size: 0.85rem; margin-bottom: 6px;
+    }
+    .lang-name { font-weight: 500; }
+    .lang-pct  { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+    .lang-track {
+      height: 6px; background: rgba(255,255,255,0.06);
+      border-radius: 3px; overflow: hidden;
+    }
+    .lang-fill {
+      height: 100%; border-radius: 3px;
+      transition: width 0.8s cubic-bezier(.22,.61,.36,1);
+    }
+
+    /* colour palette for language bars */
+    .lc-0 { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+    .lc-1 { background: linear-gradient(90deg, #a78bfa, #7c3aed); }
+    .lc-2 { background: linear-gradient(90deg, #34d399, #059669); }
+    .lc-3 { background: linear-gradient(90deg, #fbbf24, #d97706); }
+    .lc-4 { background: linear-gradient(90deg, #f87171, #dc2626); }
+    .lc-5 { background: linear-gradient(90deg, #38bdf8, #0284c7); }
+
+    /* ── Tech stack chips ───────────────────────────────────────────── */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      padding: 5px 13px; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
+      background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2);
+      color: var(--accent);
+    }
+
+    /* ── Repo list ──────────────────────────────────────────────────── */
+    .repo-list { display: flex; flex-direction: column; gap: 10px; }
+    .repo-item {
+      padding: 14px 18px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+      transition: border-color .2s;
+    }
+    .repo-item:hover { border-color: var(--border-glow); }
+    .repo-name {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+      font-weight: 500; color: var(--accent); margin-bottom: 3px;
+    }
+    .repo-desc { font-size: 0.8rem; color: var(--muted); }
+    .repo-meta { display: flex; gap: 12px; flex-shrink: 0; align-items: center; }
+    .repo-lang {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 10px;
+      background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.15);
+      color: var(--accent);
+    }
+    .repo-stars { font-size: 0.8rem; color: #fbbf24; white-space: nowrap; }
+
+    /* ── Stats row ──────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    }
+    @media (max-width: 560px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 16px;
+      text-align: center;
+    }
+    .stat-card-val {
+      font-size: 1.6rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-card-lbl { font-size: 0.72rem; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Incremental sync info ──────────────────────────────────────── */
+    .sync-info {
+      background: rgba(52,211,153,0.06); border: 1px solid rgba(52,211,153,0.2);
+      border-radius: var(--radius-sm); padding: 14px 18px;
+      font-size: 0.83rem; color: var(--accent3);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Profiles list section ──────────────────────────────────────── */
+    #profiles-section { padding: 0 0 80px; }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+    }
+    .section-header h2 {
+      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .filters {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .filter-select {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 8px 14px;
+      color: var(--text); font-size: 0.82rem; outline: none; cursor: pointer;
+    }
+    .filter-select:focus { border-color: var(--accent); }
+    .btn-sm {
+      padding: 8px 16px; font-size: 0.82rem; border-radius: var(--radius-sm);
+    }
+    .profiles-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+    .profile-thumb {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      cursor: pointer; transition: border-color .2s, transform .2s;
+    }
+    .profile-thumb:hover { border-color: var(--border-glow); transform: translateY(-2px); }
+    .thumb-top { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+    .thumb-avatar { width: 46px; height: 46px; border-radius: 50%; border: 2px solid var(--border-glow); }
+    .thumb-name { font-weight: 600; font-size: 0.95rem; }
+    .thumb-user { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); }
+    .thumb-type {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2);
+      color: var(--accent2); padding: 3px 9px; border-radius: 10px; margin-bottom: 10px;
+    }
+    .thumb-lang {
+      font-size: 0.8rem; color: var(--muted);
+    }
+    .thumb-lang span { color: var(--accent); font-weight: 500; }
+
+    /* ── Footer ─────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 0; text-align: center;
+      color: var(--muted); font-size: 0.8rem;
+    }
+    footer span { color: var(--accent); }
+
+    /* ── Divider ────────────────────────────────────────────────────── */
+    .divider { height: 1px; background: var(--border); margin: 40px 0; }
+
+    /* ── Timestamp ──────────────────────────────────────────────────── */
+    .timestamp { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      Dev<span>Intel</span>
+    </div>
+    <span class="api-badge">GitHub Intelligence API</span>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-tag">Live · Connected to Backend</div>
+    <h1>Analyze Any GitHub<br/><span class="hi">Developer Profile</span></h1>
+    <p>Enter a GitHub username to instantly detect tech stack, developer type, language distribution, and engineering insights — all powered by your backend analysis engine.</p>
+
+    <div class="search-wrap">
+      <input id="username-input" type="text" placeholder="Enter GitHub username (e.g. torvalds)" autocomplete="off" spellcheck="false" />
+      <button id="analyze-btn" class="btn btn-primary" onclick="analyzeProfile()">Analyze</button>
+    </div>
+    <div id="status-msg" class="status-bar"></div>
+  </section>
+
+  <!-- Result Section -->
+  <section id="result">
+
+    <!-- Profile card -->
+    <div class="card profile-card" id="profile-card">
+      <img id="r-avatar" src="" alt="" class="avatar" />
+      <div class="profile-info">
+        <div class="profile-username" id="r-username"></div>
+        <div class="profile-name" id="r-name"></div>
+        <div class="profile-bio" id="r-bio"></div>
+        <div class="profile-stats">
+          <div class="stat"><div class="stat-val" id="r-followers">—</div><div class="stat-lbl">Followers</div></div>
+          <div class="stat"><div class="stat-val" id="r-following">—</div><div class="stat-lbl">Following</div></div>
+          <div class="stat"><div class="stat-val" id="r-repos">—</div><div class="stat-lbl">Repos</div></div>
+        </div>
+      </div>
+      <div class="profile-badges">
+        <div class="dev-type-badge" id="r-devtype">—</div>
+        <button class="refresh-btn" id="refresh-btn" onclick="refreshProfile()">↻ Refresh</button>
+        <div class="timestamp" id="r-analyzed"></div>
+      </div>
+    </div>
+
+    <!-- Sync info (shown on refresh) -->
+    <div id="sync-info" style="display:none; margin-top:14px;"></div>
+
+    <!-- Stats row -->
+    <div class="stats-row" style="margin-top:16px;">
+      <div class="stat-card"><div class="stat-card-val" id="s-repos">—</div><div class="stat-card-lbl">Repos Analyzed</div></div>
+      <div class="stat-card"><div class="stat-card-val" id="s-stars">—</div><div class="stat-card-lbl">Total Stars</div></div>
+      <div class="stat-card"><div class="stat-card-val" id="s-forks">—</div><div class="stat-card-lbl">Total Forks</div></div>
+      <div class="stat-card"><div class="stat-card-val" id="s-toplang">—</div><div class="stat-card-lbl">Top Language</div></div>
+    </div>
+
+    <!-- Language + Tech Stack -->
+    <div class="grid2" style="margin-top:16px;">
+      <div class="card">
+        <div class="section-title">Language Distribution</div>
+        <div id="lang-bars"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Tech Stack Detected</div>
+        <div id="tech-stack" class="chips"></div>
+      </div>
+    </div>
+
+    <!-- Repositories -->
+    <div class="card" style="margin-top:16px;">
+      <div class="section-title">Top Repositories</div>
+      <div id="repo-list" class="repo-list"></div>
+    </div>
+
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- All Profiles Section -->
+  <section id="profiles-section">
+    <div class="section-header">
+      <h2>📊 Analyzed Profiles</h2>
+      <div class="filters">
+        <select id="filter-lang" class="filter-select">
+          <option value="">All Languages</option>
+          <option>JavaScript</option><option>TypeScript</option>
+          <option>Python</option><option>Go</option>
+          <option>Java</option><option>C</option><option>C++</option>
+          <option>Rust</option><option>Ruby</option><option>PHP</option>
+        </select>
+        <select id="filter-sort" class="filter-select">
+          <option value="last_analyzed_at">Latest Analyzed</option>
+          <option value="followers">Most Followers</option>
+          <option value="public_repos">Most Repos</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadProfiles()">Filter</button>
+      </div>
+    </div>
+    <div id="profiles-grid" class="profiles-grid">
+      <div style="color:var(--muted);font-size:.85rem;padding:30px 0;">
+        No profiles analyzed yet. Search for a GitHub username above to get started.
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="container">
+    Built with <span>Node.js · Express · MySQL · GitHub API</span> &nbsp;·&nbsp; DevIntel © 2026
+  </div>
+</footer>
+
+<script>
+  const API = 'http://localhost:4000/api';
+  let currentUsername = '';
+
+  // ── Analyze profile ──────────────────────────────────────────────────────────
+  async function analyzeProfile() {
+    const input = document.getElementById('username-input');
+    const username = input.value.trim();
+    if (!username) { showStatus('Please enter a GitHub username.', 'error'); return; }
+
+    currentUsername = username;
+    const btn = document.getElementById('analyze-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Analyzing…';
+    showStatus('Fetching profile and running analysis engine…', 'info');
+    hideSyncInfo();
+
+    try {
+      const res = await fetch(`${API}/github/${username}`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Analysis failed');
+      renderResult(json.data);
+      showStatus('');
+      loadProfiles();
+    } catch (e) {
+      showStatus('❌ ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Analyze';
+    }
+  }
+
+  // ── Refresh profile ──────────────────────────────────────────────────────────
+  async function refreshProfile() {
+    if (!currentUsername) return;
+    const btn = document.getElementById('refresh-btn');
+    btn.textContent = '⏳ Refreshing…';
+    btn.style.opacity = '0.6';
+    hideSyncInfo();
+
+    try {
+      const res = await fetch(`${API}/github/${currentUsername}/refresh`, { method: 'PUT' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Refresh failed');
+      renderResult(json.data);
+      if (json.incremental_sync) showSyncInfo(json.incremental_sync, json.message);
+      loadProfiles();
+    } catch (e) {
+      showStatus('❌ ' + e.message, 'error');
+    } finally {
+      btn.textContent = '↻ Refresh';
+      btn.style.opacity = '1';
+    }
+  }
+
+  // ── Load all profiles ────────────────────────────────────────────────────────
+  async function loadProfiles() {
+    const lang = document.getElementById('filter-lang').value;
+    const sort = document.getElementById('filter-sort').value;
+    let url = `${API}/profiles?page=1&limit=12&sort=${sort}`;
+    if (lang) url += `&language=${lang}`;
+
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) return;
+      renderProfilesGrid(json.data);
+    } catch (_) {}
+  }
+
+  // ── Render result ────────────────────────────────────────────────────────────
+  function renderResult(d) {
+    set('r-avatar', null, d.avatar_url, 'img');
+    set('r-username', `@${d.username}`);
+    set('r-name', d.name || d.username);
+    set('r-bio', d.bio || 'No bio available.');
+    set('r-followers', fmt(d.followers));
+    set('r-following', fmt(d.following));
+    set('r-repos', fmt(d.public_repos));
+    set('r-devtype', '⚙ ' + (d.developer_type || 'Developer'));
+    set('r-analyzed', 'Analyzed ' + timeAgo(d.last_analyzed_at));
+
+    // Stats row
+    set('s-repos', fmt(d.repositories_analyzed ?? d.repo_stats?.total_repos));
+    set('s-stars', fmt(d.repo_stats?.total_stars));
+    set('s-forks', fmt(d.repo_stats?.total_forks));
+    set('s-toplang', d.top_language || '—');
+
+    // Language bars
+    const dist = d.language_distribution || {};
+    const langEl = document.getElementById('lang-bars');
+    langEl.innerHTML = Object.keys(dist).slice(0, 6).map((lang, i) => `
+      <div class="lang-bar-row">
+        <div class="lang-bar-header">
+          <span class="lang-name">${lang}</span>
+          <span class="lang-pct">${dist[lang]}%</span>
+        </div>
+        <div class="lang-track">
+          <div class="lang-fill lc-${i % 6}" style="width:0%" data-w="${dist[lang]}%"></div>
+        </div>
+      </div>
+    `).join('') || '<p style="color:var(--muted);font-size:.85rem;">No language data.</p>';
+
+    setTimeout(() => {
+      document.querySelectorAll('.lang-fill').forEach(el => el.style.width = el.dataset.w);
+    }, 50);
+
+    // Tech stack
+    const techEl = document.getElementById('tech-stack');
+    const stack = d.tech_stack || [];
+    techEl.innerHTML = stack.length
+      ? stack.map(t => `<span class="chip">${t}</span>`).join('')
+      : '<span style="color:var(--muted);font-size:.85rem;">No stack detected.</span>';
+
+    // Repositories
+    const repoEl = document.getElementById('repo-list');
+    const repos = d.repositories || [];
+    if (repos.length) {
+      repoEl.innerHTML = repos.slice(0, 8).map(r => `
+        <div class="repo-item">
+          <div>
+            <div class="repo-name">${r.repo_name || r.name}</div>
+            <div class="repo-desc">${r.description || 'No description'}</div>
+          </div>
+          <div class="repo-meta">
+            ${r.language ? `<span class="repo-lang">${r.language}</span>` : ''}
+            <span class="repo-stars">★ ${fmt(r.stars ?? r.stargazers_count ?? 0)}</span>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      repoEl.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">Repository data will appear after fetching from the stored profile endpoint.</p>';
+    }
+
+    document.getElementById('result').classList.add('visible');
+    document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Render profiles grid ─────────────────────────────────────────────────────
+  function renderProfilesGrid(profiles) {
+    const el = document.getElementById('profiles-grid');
+    if (!profiles || profiles.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:30px 0;">No profiles found. Analyze a GitHub profile above!</div>';
+      return;
+    }
+    el.innerHTML = profiles.map(p => {
+      const stack = Array.isArray(p.tech_stack) ? p.tech_stack : (JSON.parse(p.tech_stack || '[]'));
+      return `
+        <div class="profile-thumb" onclick="loadProfile('${p.username}')">
+          <div class="thumb-top">
+            <img class="thumb-avatar" src="${p.avatar_url || ''}" alt="${p.username}" />
+            <div>
+              <div class="thumb-name">${p.name || p.username}</div>
+              <div class="thumb-user">@${p.username}</div>
+            </div>
+          </div>
+          <div class="thumb-type">${p.developer_type || 'Developer'}</div>
+          <div class="thumb-lang">Top language: <span>${p.top_language || 'Unknown'}</span></div>
+          <div style="margin-top:10px; display:flex; gap:5px; flex-wrap:wrap;">
+            ${stack.slice(0,3).map(t => `<span class="chip" style="font-size:.7rem;padding:3px 9px">${t}</span>`).join('')}
+          </div>
+          <div style="margin-top:10px; font-size:.75rem; color:var(--muted);">
+            👥 ${fmt(p.followers)} followers · 📁 ${fmt(p.public_repos)} repos
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Load a stored profile ────────────────────────────────────────────────────
+  async function loadProfile(username) {
+    currentUsername = username;
+    document.getElementById('username-input').value = username;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showStatus('Loading stored profile…', 'info');
+    hideSyncInfo();
+
+    try {
+      const res = await fetch(`${API}/profiles/${username}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      renderResult(json.data);
+      showStatus('');
+    } catch (e) {
+      showStatus('❌ ' + e.message, 'error');
+    }
+  }
+
+  // ── Sync info banner ─────────────────────────────────────────────────────────
+  function showSyncInfo(sync, msg) {
+    const el = document.getElementById('sync-info');
+    el.innerHTML = `<div class="sync-info">⚡ Incremental Sync — ${sync.repos_updated} repo(s) updated, ${sync.repos_skipped} skipped (unchanged). ${msg || ''}</div>`;
+    el.style.display = 'block';
+  }
+  function hideSyncInfo() { document.getElementById('sync-info').style.display = 'none'; }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function showStatus(msg, type = '') {
+    const el = document.getElementById('status-msg');
+    el.textContent = msg;
+    el.className = 'status-bar ' + type;
+  }
+
+  function set(id, text, src, tag) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (tag === 'img') { el.src = src; el.alt = text || ''; }
+    else el.textContent = text ?? '—';
+  }
+
+  function fmt(n) {
+    if (n === null || n === undefined) return '—';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '—';
+    const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  // ── Enter key support ────────────────────────────────────────────────────────
+  document.getElementById('username-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') analyzeProfile();
+  });
+
+  // ── Load profiles on page load ───────────────────────────────────────────────
+  loadProfiles();
+</script>
+</body>
+</html>
