@@ -71,10 +71,19 @@ app.use((err, _req, res, _next) => {
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 const start = async () => {
-  console.log('🚀  GitHub Developer Intelligence API — starting up...');
   try {
-    // Ensure DB schema is ready before serving any requests
-    await initializeDatabase();
+    // Attempt to initialize DB, but don't block server startup if it fails
+    // In a serverless environment, we initialize on the fly inside the routes
+    await initializeDatabase().catch(err => {
+      console.error('Database initialization warning:', err.message);
+    });
+
+    if (process.env.VERCEL) {
+      console.log('Running in Vercel Serverless mode.');
+      return; // Do not call app.listen in Vercel
+    }
+
+    const PORT = process.env.PORT || 3000;
 
     // Wrap listen in a Promise so errors (e.g. EADDRINUSE) are catchable
     await new Promise((resolve, reject) => {
@@ -82,27 +91,25 @@ const start = async () => {
       server.on('error', reject);
     });
 
-    console.log('');
-    console.log('  ┌──────────────────────────────────────────────────────┐');
-    console.log('  │     GitHub Developer Intelligence API                │');
-    console.log('  │                                                      │');
-    console.log(`  │  Server running on  →  http://localhost:${PORT}         │`);
-    console.log('  │                                                      │');
-    console.log('  │  Endpoints:                                          │');
-    console.log('  │    POST  /api/github/:username                       │');
-    console.log('  │    PUT   /api/github/:username/refresh               │');
-    console.log('  │    GET   /api/profiles                               │');
-    console.log('  │    GET   /api/profiles/:username                     │');
-    console.log('  │    GET   /health                                     │');
-    console.log('  └──────────────────────────────────────────────────────┘');
-    console.log('');
-  } catch (err) {
-    console.error('❌  Failed to start server:');
-    console.error('    Code   :', err.code || 'N/A');
-    console.error('    Message:', err.message || '(empty)');
-    console.error('    Detail :', err.sqlMessage || err.cause || '');
+    console.log(`
+  ┌──────────────────────────────────────────────────────┐
+  │     GitHub Developer Intelligence API                │
+  │                                                      │
+  │  Server running on  →  http://localhost:${PORT}         │
+  │                                                      │
+  │  Endpoints:                                          │
+  │    POST  /api/github/:username                       │
+  │    PUT   /api/github/:username/refresh               │
+  │    GET   /api/profiles                               │
+  │    GET   /api/profiles/:username                     │
+  │    GET   /health                                     │
+  └──────────────────────────────────────────────────────┘
+    `);
+  } catch (error) {
+    console.error('❌  Failed to start server:\n', error);
     process.exit(1);
   }
 };
 
 start();
+module.exports = app;
