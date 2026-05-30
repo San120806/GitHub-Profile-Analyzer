@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API = 'http://127.0.0.1:4000/api';
+const API = '/api';
 
 function App() {
   const [username, setUsername] = useState('');
